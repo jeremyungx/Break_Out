@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Gamedev Canvas Workshop</title>
+    <style>
+        * { padding: 0; margin: 0;}
+        canvas { background: #ffffcd; display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div style = "text-align:center;"></div>
+        <canvas id="myCanvas" width="960" height="900"></canvas>
+    </div>
+
+<script>
+var canvas = document.getElementById("myCanvas");
+var ctx = canvas.getContext("2d");
+// Defines Ball radius
+var ballRadius = 10;
+// Ball starts on the canvas mid-width
+var x = canvas.width/2;
+// Ball starts 30px above the max Canvas height (so almost at the bottom)
+// Reminder: Canvas height = 0 = top; Canvas height = 320 ("max") = bottom
+var y = canvas.height-30;
+// Gets the ball moving on the right by 2 px every frame
+var dx = 6.5;
+// Ball moves up by 2 px every frame
+var dy = -6.5;
+
+// Paddle variables
+var paddleHeight = 10;
+var paddleWidth = 150;
+// Try (canvas.width)/2 vs (canvas.width-paddleWidth)/2
+// (canvas.width)/2 ==> paddle is drawn from width/2 thus paddle leans on the right
+// (canvas.width-paddleWidth)/2 ==> paddle starts being drawn 
+// a bit before canvas.width/2 and a bit after it instead of only after it
+var paddleX = (canvas.width-paddleWidth) / 2;
+var rightPressed = false;
+var leftPressed = false; 
+
+// Brick variabales
+var brickRowCount = 5;
+var brickColumnCount = 10;
+var brickWidth = 75;
+var brickHeight = 20;
+var brickPadding = 10;
+var brickOffsetTop = 50;
+var brickOffsetLeft = 60;
+// Brick 2-dimensional - rows & columns arrays
+var bricks = [];
+for(var r=0; r<brickRowCount; r++) {
+    bricks[r] = [];
+    for(var c=0; c<brickColumnCount; c++) {
+        bricks[r][c] = {x: 0, y: 0, status: 1};
+    }
+}
+// Scoring
+var score = 0;
+
+// Lives
+var lives = 3;
+
+// Draws the Ball;
+function drawBall() {
+    // 10px rad golden circle on x, y, as defined in the variables above
+    ctx.beginPath();
+    ctx.arc(x, y, ballRadius, 0, Math.PI*2);
+    ctx.fillStyle = "#fdcdc5";
+    ctx.fill();
+    ctx.closePath();
+}
+
+// Draws the Paddle
+function drawPaddle() {
+    ctx.beginPath();
+    ctx.rect(paddleX, canvas.height-paddleHeight*2, paddleWidth, paddleHeight);
+    ctx.fillStyle = "#D62F40";
+    ctx.fill();
+    ctx.closePath();
+}
+
+// Draws the bricks
+function drawBricks() {
+    for(var r=0; r<brickRowCount; r++) {
+        for(var c=0; c<brickColumnCount; c++) {
+            if(bricks[r][c].status == 1) {
+            var brickX = (c*(brickWidth+brickPadding))+brickOffsetLeft;
+            var brickY = (r*(brickHeight+brickPadding))+brickOffsetTop;
+            bricks[r][c].x = brickX;
+            bricks[r][c].y = brickY;
+            var bColor = ["#d62f40", "#ea5944", "#fb8c4d", "#ffc662", "#fff26a"]
+            ctx.beginPath();
+            ctx.rect(brickX, brickY, brickWidth, brickHeight);
+            ctx.fillStyle = bColor[2];
+            ctx.fill();
+            ctx.closePath();
+            }
+        }
+    }
+}
+
+function draw() {
+    // Removes the paint trail so that there is only one image of the ball
+    // each frame
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBall();
+    drawPaddle();
+    drawBricks();
+    drawScore();
+    drawLives();
+    BricksCollisionDetection();
+    // Bounces from right edge (x + dx > canvas.width-ballRadius {dx = -dx})
+    // Bounces from left edge (x + dx < 0+ballRadius {dx = -dx})
+    if(x + dx > canvas.width-ballRadius || x + dx < 0+ballRadius) {
+        dx = -dx;
+    }
+    // Bounces from top edge (y + dy < 0 {dy = -dy})
+    if(y + dy < 0+ballRadius) {
+        dy = -dy;
+    }
+
+    // PADDLE BOUNCES DIRECTIONS
+    // Bounces from paddle extreme left-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x >= paddleX 
+        && x < paddleX + paddleWidth*(1/16)) {
+            if(dx < 0) {
+                dx = -(1.1)*Math.abs(dx)-2.5;
+            }else if(dx >= 0) {
+                dx = -(1.1)*Math.abs(dx)-2;
+            }
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle high left-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x >= paddleX + paddleWidth*(1/16)
+        && x < paddleX + paddleWidth*(3/16)) {
+            if(dx < 0) {
+                dx = -(1)*Math.abs(dx)-1.5;
+            }else if(dx >= 0) {
+                dx = -(1)*Math.abs(dx)-1;
+            }
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle mid left-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x >= paddleX + paddleWidth*(3/16)
+        && x < paddleX + paddleWidth*(5/16)) {
+            if(dx < 0) {
+                dx = -(0.98)*Math.abs(dx)-1;
+            }else if(dx >= 0) {
+                dx = -(0.98)*Math.abs(dx)+0.5;
+            }
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle low left-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x >= paddleX + paddleWidth*(5/16)
+        && x < paddleX + paddleWidth*(7/16)){
+            dx = (0.95)*dx-0.5;
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+        }
+    // Bounces from paddle middle
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x >= paddleX + paddleWidth*(7/16) 
+        && x <= paddleX + paddleWidth*(9/16)){
+            dx = (0.9)*dx;
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle low righ-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x > paddleX + paddleWidth*(9/16) 
+        && x <= paddleX + paddleWidth*(11/16)){
+            dx = (0.95)*dx+0.5;
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle mid right-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x > paddleX + paddleWidth*(11/16)
+        && x <= paddleX + paddleWidth*(13/16)) {
+            if(dx < 0) {
+                dx = (0.98)*Math.abs(dx)-0.5;
+            }else if(dx >= 0) {
+                dx = (0.98)*Math.abs(dx)+1;
+            }
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle high right-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x > paddleX + paddleWidth*(13/16)
+        && x <= paddleX + paddleWidth*(15/16)) {
+            if(dx < 0) {
+                dx = (1)*Math.abs(dx)+1;
+            }else if(dx >= 0) {
+                dx = (1)*Math.abs(dx)+1.5;
+            }
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+    // Bounces from paddle extreme right-side
+    else if(y + dy > canvas.height-paddleHeight*2
+        && x > paddleX + paddleWidth*(15/16)
+        && x < paddleX + paddleWidth*(16/16)) {
+            if(dx < 0) {
+                dx = (1.15)*Math.abs(dx)+2;
+            }else if(dx >= 0) {
+                dx = (1.15)*Math.abs(dx)+2.5;
+            }
+            dy = -(105/100)*dy;
+            paddleWidth = paddleWidth-2;
+    }
+
+    // Falls in bottom edge
+    else if(y + dy > canvas.height) {
+        if(x < paddleX || x > paddleX + paddleWidth) {
+            lives--;
+            // Parameters for each life
+            }if(lives == -1) {
+                alert("Lost ><'");
+                document.location.reload();
+            }if(lives == 2) {
+                x = canvas.width/2
+                y = canvas.height-30;
+                if(dy + 0.5 < Math.abs(-8)) {
+                    dy = -Math.abs(dy+1);
+                }else if(dy + 0.5 >= Math.abs(-8)) {
+                    dy = -8;
+                } dx = -dy;
+                paddleWidth = 150;
+            }if(lives == 1) {
+                x = canvas.width/2
+                y = canvas.height-30;
+                if(dy + 0.5 < Math.abs(-9.5)) {
+                    dy = -Math.abs(dy+1);
+                }else if(dy + 0.5 >= Math.abs(-9.5)) {
+                    dy = -9.5;
+                } dx = -dy;
+                paddleWidth = 150;
+            }if(lives == 0) {
+                x = canvas.width/2
+                y = canvas.height-30;
+                if(dy + 0.5 < Math.abs(-11)) {
+                    dy = -Math.abs(dy+1);
+                }else if(dy + 0.5 >= Math.abs(-11)) {
+                    dy = -11;
+                } dx = -dy
+                paddleWidth = 150;
+            }
+        }
+
+    // Increments dx and dy each frame
+    x += dx;
+    y += dy;
+
+    // Paddle commands
+    if(rightPressed) {
+        paddleX += 12;
+        if(paddleX + paddleWidth > canvas.width) {
+            paddleX = canvas.width - paddleWidth;
+        }
+    }
+    else if(leftPressed) {
+        paddleX -= 12;
+        if(paddleX < 0){
+            paddleX = 0;
+        }
+    }requestAnimationFrame(draw);
+}
+// false because at the beginning, the control buttons are not pressed
+document.addEventListener("keydown", keyDownHandler, false);
+document.addEventListener("keyup", keyUpHandler, false);
+document.addEventListener("mousemove", mouseMoveHandler, false);
+// e = event
+// keyUp/DownHandler = left/right arrows to paddle interactions
+function keyDownHandler(e) {
+    if(e.key == "Right" || e.key == "ArrowRight") {
+        rightPressed = true
+    }
+    else if(e.key == "Left" || e.key == "ArrowLeft") {
+        leftPressed = true;
+    }
+}  
+function keyUpHandler(e) {
+    if(e.key == "Right" || e.key == "ArrowRight") {
+        rightPressed = false;
+    }
+    else if (e.key = "Left" || e.key == "ArrowLeft") {
+        leftPressed = false;
+    }
+}
+// Displays Score
+function drawScore() {
+    ctx.font = "bold 24px Times New Roman";
+    ctx.fillStyle = "#4B3030";
+    ctx.fillText("Score: "+score, (canvas.width/2)-40, 30);
+}
+
+// Displays Lives
+function drawLives() {
+    ctx.font = "24px Times New Roman"
+    ctx.fillStyle = "#4B3030";
+    ctx.fillText("Remaining Lives: "+lives, ((7.3*canvas.width)/10), 30);
+}
+
+// Mouse to paddle interactions
+function mouseMoveHandler(e) {
+    var relativeX = e.clientX - canvas.offsetLeft;
+    if(relativeX > 0+(paddleWidth/2)-10 && relativeX < canvas.width-(paddleWidth/2)+10) {
+        paddleX = relativeX - paddleWidth/2;
+    }
+}
+
+// Bricks collision detection
+function BricksCollisionDetection() {
+    for(var r=0; r<brickRowCount; r++) {
+        for(var c=0; c<brickColumnCount; c++) {
+            var b = bricks[r][c];
+            if(b.status == 1) {
+            // x and y coordinates are defined on the top-left corner of a brick
+                if(x > b.x && x < b.x+brickWidth && y > b.y && y < b.y+brickHeight) {
+                    dy = -dy;
+                    b.status = 0;
+                    score++;
+                    if(score == brickRowCount*brickColumnCount) {
+                        alert("Hey, you won !! Congrats <3");
+                        document.location.reload();
+                    }
+                }    
+            }
+        }
+    }
+}
+
+// setInterval is infinite; the function will be called every 10ms forever
+draw();    
+</script>
+</body>
+</html>
